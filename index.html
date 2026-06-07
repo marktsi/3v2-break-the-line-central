@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3v2 Break The Line — Central</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=Barlow:wght@400;500;600&display=swap');
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #0a0a0a; font-family: 'Barlow', sans-serif;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    min-height: 100vh; padding: 20px; color: #fff;
+  }
+
+  .header { text-align: center; margin-bottom: 14px; }
+  .header h1 {
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 22px;
+    letter-spacing: 2px; text-transform: uppercase; color: #C61D23;
+  }
+  .header p { font-size: 11px; color: #888; letter-spacing: 1px; text-transform: uppercase; margin-top: 2px; }
+
+  .phase-label {
+    font-family: 'Barlow Condensed', sans-serif; font-size: 15px; font-weight: 700;
+    letter-spacing: 2px; text-transform: uppercase; color: #fff; background: #C61D23;
+    padding: 4px 16px; margin-bottom: 12px; min-width: 290px; text-align: center;
+  }
+
+  /* Horizontal scene: 640 wide × 380 tall */
+  .scene { position: relative; width: 640px; height: 380px; }
+
+  .field {
+    position: absolute; top: 90px; left: 80px; width: 480px; height: 200px;
+    background: #1a5c1a; border: 2px solid rgba(255,255,255,0.85); border-radius: 2px;
+  }
+  .field::before {
+    content: ''; position: absolute; inset: 0;
+    background: repeating-linear-gradient(90deg, transparent, transparent 48px,
+      rgba(255,255,255,0.04) 48px, rgba(255,255,255,0.04) 96px);
+  }
+
+  /* Two dashed vertical lines = boundary of the 5-yard middle zone */
+  .line-left, .line-right {
+    position: absolute; top: 0; bottom: 0; width: 0;
+    border-left: 2px dashed rgba(255,255,255,0.65);
+  }
+  .line-left  { left: 45%; }
+  .line-right { left: 55%; }
+
+  .zone-label {
+    position: absolute; font-family: 'Barlow Condensed', sans-serif;
+    font-size: 9px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+    color: rgba(255,255,255,0.35); top: 6px;
+  }
+  .zone-label.final   { left: 14%; }
+  .zone-label.middle  { left: 47%; }
+  .zone-label.initial { left: 70%; }
+
+  /* Small goals on left/right edges of the field */
+  .goal-left, .goal-right {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    width: 10px; height: 54px; border: 2px solid rgba(255,255,255,0.85);
+    background: rgba(255,255,255,0.07);
+  }
+  .goal-left  { left: -10px;  border-right: none; }
+  .goal-right { right: -10px; border-left:  none; }
+
+  /* Players */
+  .player {
+    position: absolute; width: 24px; height: 24px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 700; color: #fff;
+    border: 2px solid rgba(255,255,255,0.3);
+    transition: left 0.85s cubic-bezier(0.4,0,0.2,1), top 0.85s cubic-bezier(0.4,0,0.2,1), opacity 0.4s;
+    z-index: 10;
+  }
+  .player.gk {
+    border-radius: 5px; font-size: 9px; border-color: rgba(255,255,255,0.65);
+    transition: none; color: #222;
+  }
+  .player.red    { background: #C61D23; box-shadow: 0 0 8px rgba(198,29,35,0.5); }
+  .player.blue   { background: #1a6eb5; box-shadow: 0 0 8px rgba(26,110,181,0.5); }
+  .player.yellow { background: #ffc928; box-shadow: 0 0 8px rgba(255,201,40,0.55); }
+
+  .player.pulse { animation: pulse 0.45s ease-in-out 4; }
+  @keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.6)} }
+
+  /* Static "queue" players outside the box */
+  .queue {
+    position: absolute; width: 18px; height: 18px; border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.25); opacity: 0.55; z-index: 8;
+  }
+  .queue.red  { background: #C61D23; }
+  .queue.blue { background: #1a6eb5; }
+
+  .ball {
+    position: absolute; width: 13px; height: 13px; border-radius: 50%;
+    background: #fff; border: 1px solid #bbb; z-index: 20;
+    transition: left 0.85s cubic-bezier(0.4,0,0.2,1), top 0.85s cubic-bezier(0.4,0,0.2,1);
+    box-shadow: 0 0 8px rgba(255,255,255,0.9);
+  }
+
+  .goal-flash {
+    position: absolute; top: 90px; left: 80px; width: 480px; height: 200px;
+    background: rgba(198,29,35,0.12); border: 2px solid #C61D23;
+    pointer-events: none; opacity: 0; transition: opacity 0.3s; z-index: 5; border-radius: 2px;
+  }
+  .goal-flash.show { opacity: 1; }
+
+  .goal-text {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    font-family: 'Barlow Condensed', sans-serif; font-size: 44px; font-weight: 900;
+    color: #C61D23; letter-spacing: 4px; text-transform: uppercase;
+    opacity: 0; transition: opacity 0.3s; z-index: 30;
+    text-shadow: 0 0 24px rgba(198,29,35,0.9); pointer-events: none; white-space: nowrap;
+  }
+  .goal-text.show { opacity: 1; }
+
+  .arrows-svg {
+    position: absolute; top: 0; left: 0; width: 640px; height: 380px;
+    pointer-events: none; z-index: 15; opacity: 0; transition: opacity 0.4s;
+  }
+  .arrows-svg.show { opacity: 1; }
+
+  .legend { display: flex; gap: 14px; margin-top: 10px; justify-content: center; flex-wrap: wrap; }
+  .legend-item {
+    display: flex; align-items: center; gap: 5px; font-size: 11px; color: #bbb;
+    font-family: 'Barlow Condensed', sans-serif; letter-spacing: 1px; text-transform: uppercase;
+  }
+  .legend-dot { width: 12px; height: 12px; border-radius: 50%; }
+  .legend-dot.red    { background: #C61D23; }
+  .legend-dot.blue   { background: #1a6eb5; }
+  .legend-dot.yellow { background: #ffc928; }
+
+  .step-indicators { display: flex; gap: 7px; margin-top: 10px; }
+  .step-dot { width: 7px; height: 7px; border-radius: 50%; background: #333; transition: background 0.3s; }
+  .step-dot.active { background: #C61D23; }
+  .step-dot.done   { background: #555; }
+
+  .desc {
+    font-size: 11px; color: #777; text-align: center; max-width: 560px;
+    margin-top: 6px; line-height: 1.5; min-height: 32px;
+  }
+
+  .controls { display: flex; gap: 8px; margin-top: 12px; align-items: center; }
+  .btn {
+    font-family: 'Barlow Condensed', sans-serif; font-size: 13px; font-weight: 700;
+    letter-spacing: 1.5px; text-transform: uppercase; padding: 8px 18px;
+    border: none; cursor: pointer; transition: all 0.2s;
+  }
+  .btn-primary            { background: #C61D23; color: #fff; }
+  .btn-primary:hover      { background: #e02228; }
+  .btn-secondary          { background: transparent; color: #888; border: 1px solid #333; }
+  .btn-secondary:hover    { border-color: #666; color: #ccc; }
+
+  .tsi-logo-wrap{display:flex;justify-content:center;padding:0 0 12px;width:100%;}
+  .tsi-logo{height:38px;width:auto;display:block;}
+</style>
+</head>
+<body>
+<div class="tsi-logo-wrap"><img class="tsi-logo" alt="TSI" src="data:image/jpeg;base64,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"/></div>
+
+
+<div class="header">
+  <h1>3v2 Break The Line — Central</h1>
+  <p>Final 1/3 Combinations</p>
+</div>
+
+<div class="phase-label" id="phaseLabel">Phase 1 — Setup &amp; Starting Pass</div>
+
+<div class="scene">
+  <div class="field">
+    <div class="line-left"></div>
+    <div class="line-right"></div>
+    <div class="zone-label final">Final Box</div>
+    <div class="zone-label middle">5y</div>
+    <div class="zone-label initial">Initial Box</div>
+    <div class="goal-left"></div>
+    <div class="goal-right"></div>
+  </div>
+
+  <div class="goal-flash" id="goalFlash"></div>
+  <div class="goal-text"  id="goalText">GOAL!</div>
+
+  <svg class="arrows-svg" id="svgTransition" viewBox="0 0 640 380">
+    <defs>
+      <marker id="mB" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+        <path d="M0,0 L6,3 L0,6 Z" fill="#1a6eb5"/>
+      </marker>
+      <marker id="mR" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+        <path d="M0,0 L6,3 L0,6 Z" fill="#C61D23"/>
+      </marker>
+    </defs>
+    <path id="ta0" stroke="#1a6eb5" stroke-width="1.8" stroke-dasharray="5,3" fill="none" marker-end="url(#mB)"/>
+    <path id="ta1" stroke="#1a6eb5" stroke-width="1.8" stroke-dasharray="5,3" fill="none" marker-end="url(#mB)"/>
+    <path id="ta2" stroke="#C61D23" stroke-width="1.8" stroke-dasharray="5,3" fill="none" marker-end="url(#mR)"/>
+    <path id="ta3" stroke="#C61D23" stroke-width="1.8" stroke-dasharray="5,3" fill="none" marker-end="url(#mR)"/>
+  </svg>
+
+  <svg class="arrows-svg" id="svgPass" viewBox="0 0 640 380">
+    <defs>
+      <marker id="mPass" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+        <path d="M0,0 L7,3.5 L0,7 Z" fill="#ffffff"/>
+      </marker>
+      <marker id="mPassR" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+        <path d="M0,0 L7,3.5 L0,7 Z" fill="#C61D23"/>
+      </marker>
+    </defs>
+    <path id="passArrow" stroke="#ffffff" stroke-width="2.2" fill="none" marker-end="url(#mPass)" opacity="0.85"/>
+    <path id="passArrow2" stroke="#C61D23" stroke-width="2.2" fill="none" marker-end="url(#mPassR)" opacity="0.9" stroke-dasharray="0"/>
+  </svg>
+</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot blue"></div>Blue — attacking team</div>
+  <div class="legend-item"><div class="legend-dot red"></div>Red — defending team</div>
+  <div class="legend-item"><div class="legend-dot yellow"></div>Yellow — goalkeepers</div>
+</div>
+
+<div class="step-indicators" id="stepDots"></div>
+<div class="desc" id="desc"></div>
+
+<div class="controls">
+  <button class="btn btn-secondary" id="prevBtn" onclick="changePhase(-1)">← Back</button>
+  <button class="btn btn-primary"   id="playBtn" onclick="toggleAuto()">▶ Auto</button>
+  <button class="btn btn-secondary" id="nextBtn" onclick="changePhase(1)">Next →</button>
+</div>
+
+<script>
+// Scene 640×380. Field: top 90, left 80, w 480, h 200.
+const FL=80, FT=90, FW=480, FH=200;
+
+function p(px,py){ return [ FL + px/100*FW - 12, FT + py/100*FH - 12 ]; }
+function b(px,py){ return [ FL + px/100*FW - 6.5, FT + py/100*FH - 6.5 ]; }
+function ctr(pos){ return [ pos[0]+12, pos[1]+12 ]; }
+function ctrB(pos){ return [ pos[0]+6.5, pos[1]+6.5 ]; }
+
+// Fixed GKs (yellow, in the small goals on left/right edges)
+const YGK_LEFT  = p(-2, 50);   // main goal (left)
+const YGK_RIGHT = p(102, 50);  // secondary goal (right)
+
+// Off-field hidden position (used for reset transition)
+const OFF = [ -100, -100 ];
+
+const phases = [
+  {
+    label: "Phase 1 — Setup",
+    desc: "Starting positions. Right yellow GK holds the ball. Two blue attackers vs two red defenders set up in the initial box. Blue support waits in the 5y middle zone. Two red defenders sit in the final box.",
+    showGoal:false, showTransition:false, showPass:false,
+    blueAtk: [ p(78,35), p(78,65) ],
+    blueSup: p(50,50),
+    redInit: [ p(67,35), p(67,65) ],
+    redFinal:[ p(20,35), p(20,65) ],
+    ball: b(100,50)
+  },
+  {
+    label: "Phase 2 — Starting Pass",
+    desc: "Right yellow GK plays the ball into blue #1 in the initial box. Reds remain compact, ready to shadow.",
+    showGoal:false, showTransition:false, showPass:true,
+    blueAtk: [ p(78,35), p(78,65) ],
+    blueSup: p(50,50),
+    redInit: [ p(67,35), p(67,65) ],
+    redFinal:[ p(20,35), p(20,65) ],
+    ball: b(78,35),
+    pass: { from: ctr(YGK_RIGHT), to: ctrB(b(78,35)) }
+  },
+  {
+    label: "Phase 3 — First Pass (Blue ↔ Blue)",
+    desc: "First pass between the two blue attackers inside the initial box. Reds shadow but don't commit, denying the line-breaking pass.",
+    showGoal:false, showTransition:false, showPass:true,
+    blueAtk: [ p(78,35), p(78,65) ],
+    blueSup: p(50,50),
+    redInit: [ p(67,40), p(67,60) ],
+    redFinal:[ p(20,35), p(20,65) ],
+    ball: b(78,65),
+    pass: { from: ctrB(b(78,35)), to: ctrB(b(78,65)) }
+  },
+  {
+    label: "Phase 4 — Second Pass (Reds Shift)",
+    desc: "Second pass back across. Reds shift to shadow again — still blocking the forward line.",
+    showGoal:false, showTransition:false, showPass:true,
+    blueAtk: [ p(78,35), p(78,65) ],
+    blueSup: p(50,50),
+    redInit: [ p(67,35), p(67,65) ],
+    redFinal:[ p(20,35), p(20,65) ],
+    ball: b(78,35),
+    pass: { from: ctrB(b(78,65)), to: ctrB(b(78,35)) }
+  },
+  {
+    label: "Phase 5 — Break The Line",
+    desc: "Third pass — blue breaks the line. Blue support slides to the right edge of his 5y zone near the top sideline to open a natural passing line; blue #1 plays it into his feet.",
+    showGoal:false, showTransition:false, showPass:true,
+    blueAtk: [ p(78,35), p(78,65) ],
+    blueSup: p(55,20),
+    redInit: [ p(67,30), p(67,70) ],
+    redFinal:[ p(20,35), p(20,65) ],
+    ball: b(55,20),
+    pass: { from: ctrB(b(78,35)), to: ctrB(b(55,20)) }
+  },
+  {
+    label: "Phase 6 — 3v2 Begins (Lay-Off)",
+    desc: "Blue support lays it off centrally to blue #1. Blue #2 attacks the left half-space wider; blue S mirrors the run on the right. Red final defenders step up — 3v2 to goal.",
+    showGoal:false, showTransition:true, showPass:true,
+    blueAtk: [ p(42,50), p(42,78) ],
+    blueSup: p(42,22),
+    redInit: [ p(60,40), p(60,60) ],
+    redFinal:[ p(28,38), p(28,62) ],
+    ball: b(42,50),
+    pass: { from: ctrB(b(55,20)), to: ctrB(b(42,50)) },
+    transArrows: [
+      { from: ctr(p(78,35)), to: ctr(p(42,50)), color:'blue' },
+      { from: ctr(p(78,65)), to: ctr(p(42,78)), color:'blue' },
+      { from: ctr(p(20,35)), to: ctr(p(28,38)), color:'red' },
+      { from: ctr(p(20,65)), to: ctr(p(28,62)), color:'red' }
+    ]
+  },
+  {
+    label: "Phase 7 — Combination Down The Side",
+    desc: "Combination: S lays off to #1, who plays it down the right side into space 5y from the endline — blue S runs onto it. Blue #2 attacks the back post.",
+    showGoal:false, showTransition:false, showPass:true,
+    blueAtk: [ p(38,55), p(8,65) ],
+    blueSup: p(10,22),
+    redInit: [ p(55,42), p(55,60) ],
+    redFinal:[ p(25,30), p(25,70) ],
+    ball: b(10,22),
+    pass: { from: ctrB(b(42,50)), to: ctrB(b(10,22)) }
+  },
+  {
+    label: "Phase 8 — The Cross",
+    desc: "Blue S plays a low hard cross to blue #2 at the back post. #2 receives the ball.",
+    showGoal:false, showTransition:false, showPass:true,
+    blueAtk: [ p(38,55), p(8,65) ],
+    blueSup: p(10,22),
+    redInit: [ p(55,42), p(55,60) ],
+    redFinal:[ p(25,30), p(25,70) ],
+    ball: b(8,65),
+    pass: { from: ctrB(b(10,22)), to: ctrB(b(8,65)) }
+  },
+  {
+    label: "Phase 9 — Shot & GOAL!",
+    desc: "Blue #2 shoots from the back post and scores — yellow GK beaten.",
+    showGoal:true, showTransition:false, showPass:true,
+    blueAtk: [ p(38,55), p(8,65) ],
+    blueSup: p(10,22),
+    redInit: [ p(55,42), p(55,60) ],
+    redFinal:[ p(25,30), p(25,70) ],
+    ball: b(-1,50),
+    pass: { from: ctrB(b(8,65)), to: ctrB(b(-1,50)) },
+    pulseTeam: 'blue'
+  },
+  {
+    label: "Phase 10 — Reset (New Group)",
+    desc: "Players exit. A new group enters and takes up the same starting positions. Yellow GKs stay put.",
+    showGoal:false, showTransition:true, showPass:false,
+    blueAtk: [ p(78,35), p(78,65) ],
+    blueSup: p(50,50),
+    redInit: [ p(67,35), p(67,65) ],
+    redFinal:[ p(20,35), p(20,65) ],
+    ball: b(95,50),
+    transArrows: [
+      { from: [ 320, 30 ], to: ctr(p(78,35)), color:'blue' },
+      { from: [ 320, 30 ], to: ctr(p(78,65)), color:'blue' },
+      { from: [ 320, 350 ], to: ctr(p(20,35)), color:'red' },
+      { from: [ 320, 350 ], to: ctr(p(20,65)), color:'red' }
+    ]
+  },
+  {
+    label: "Phase 11 — Red Intercepts",
+    desc: "Same build, same first two passes — but on the line-breaking attempt a red defender steps in and intercepts.",
+    showGoal:false, showTransition:false, showPass:true,
+    blueAtk: [ p(78,35), p(78,65) ],
+    blueSup: p(50,50),
+    redInit: [ p(58,50), p(67,65) ],
+    redFinal:[ p(20,35), p(20,65) ],
+    ball: b(58,50),
+    pass: { from: ctrB(b(78,35)), to: ctrB(b(58,50)), color: 'red' }
+  },
+  {
+    label: "Phase 12 — Red Counter (2v2)",
+    desc: "Reds break out. The two initial-box reds attack the secondary goal — 2v2 against the recovering blues.",
+    showGoal:false, showTransition:true, showPass:false,
+    blueAtk: [ p(85,40), p(85,60) ],
+    blueSup: p(50,50),
+    redInit: [ p(70,45), p(70,55) ],
+    redFinal:[ p(20,35), p(20,65) ],
+    ball: b(70,45),
+    transArrows: [
+      { from: ctr(p(58,50)), to: ctr(p(70,45)), color:'red' },
+      { from: ctr(p(67,65)), to: ctr(p(70,55)), color:'red' },
+      { from: ctr(p(78,35)), to: ctr(p(85,40)), color:'blue' },
+      { from: ctr(p(78,65)), to: ctr(p(85,60)), color:'blue' }
+    ]
+  },
+  {
+    label: "Phase 13 — Red Combination",
+    desc: "Red #1 finds red #2 wide right. Red #2 takes the ball 3 yards wider to open a shooting angle on the secondary goal.",
+    showGoal:false, showTransition:false, showPass:true,
+    blueAtk: [ p(88,40), p(88,60) ],
+    blueSup: p(50,50),
+    redInit: [ p(82,45), p(82,65) ],
+    redFinal:[ p(20,35), p(20,65) ],
+    ball: b(82,65),
+    pass: { from: ctrB(b(70,45)), to: ctrB(b(82,65)), color:'red' }
+  },
+  {
+    label: "Phase 14 — Red Scores — GOAL!",
+    desc: "Red #2 strikes from the wider angle and scores on the secondary goal. Punishment for losing the ball on the line-break attempt.",
+    showGoal:true, showTransition:false, showPass:true,
+    blueAtk: [ p(88,40), p(88,60) ],
+    blueSup: p(50,50),
+    redInit: [ p(82,45), p(82,65) ],
+    redFinal:[ p(20,35), p(20,65) ],
+    ball: b(101,50),
+    pass: { from: ctrB(b(82,65)), to: ctrB(b(101,50)), color:'red' },
+    pulseTeam: 'red'
+  }
+];
+
+// Build players
+const scene = document.querySelector('.scene');
+const els = { blueAtk:[], blueSup:null, redInit:[], redFinal:[], gkL:null, gkR:null, ball:null };
+
+function mkPlayer(team, label, isGK){
+  const el = document.createElement('div');
+  el.className = `player ${team}${isGK?' gk':''}`;
+  el.textContent = label;
+  scene.appendChild(el);
+  return el;
+}
+
+function mkQueue(team, x, y){
+  const el = document.createElement('div');
+  el.className = `queue ${team}`;
+  el.style.left = x+'px';
+  el.style.top  = y+'px';
+  scene.appendChild(el);
+}
+
+function createAll(){
+  els.gkL = mkPlayer('yellow','GK',true);
+  els.gkR = mkPlayer('yellow','GK',true);
+  els.gkL.style.left = YGK_LEFT[0]+'px';  els.gkL.style.top = YGK_LEFT[1]+'px';
+  els.gkR.style.left = YGK_RIGHT[0]+'px'; els.gkR.style.top = YGK_RIGHT[1]+'px';
+
+  // Blue attackers
+  els.blueAtk.push(mkPlayer('blue','1',false));
+  els.blueAtk.push(mkPlayer('blue','2',false));
+  // Blue support
+  els.blueSup = mkPlayer('blue','S',false);
+  // Red initial defenders
+  els.redInit.push(mkPlayer('red','1',false));
+  els.redInit.push(mkPlayer('red','2',false));
+  // Red final defenders
+  els.redFinal.push(mkPlayer('red','3',false));
+  els.redFinal.push(mkPlayer('red','4',false));
+
+  // Ball
+  const ball = document.createElement('div');
+  ball.className = 'ball';
+  scene.appendChild(ball);
+  els.ball = ball;
+
+  // Static queue players (waiting groups outside the field)
+  // Blue queue across the top
+  [280, 305, 330, 355].forEach((x,i)=> mkQueue('blue', x, 50 + (i%2?10:0)));
+  // Red queue across the bottom
+  [280, 305, 330, 355].forEach((x,i)=> mkQueue('red',  x, 310 + (i%2?10:0)));
+}
+
+function place(el, pos){
+  el.style.left = pos[0]+'px';
+  el.style.top  = pos[1]+'px';
+}
+
+let current=0, isAuto=false, timer=null;
+
+function applyPhase(idx){
+  const ph = phases[idx];
+
+  place(els.blueAtk[0], ph.blueAtk[0]);
+  place(els.blueAtk[1], ph.blueAtk[1]);
+  place(els.blueSup, ph.blueSup);
+  place(els.redInit[0], ph.redInit[0]);
+  place(els.redInit[1], ph.redInit[1]);
+  place(els.redFinal[0], ph.redFinal[0]);
+  place(els.redFinal[1], ph.redFinal[1]);
+  place(els.ball, ph.ball);
+
+  document.getElementById('goalFlash').classList.toggle('show', ph.showGoal);
+  document.getElementById('goalText').classList.toggle('show', ph.showGoal);
+  if(ph.showGoal && ph.pulseTeam){
+    const list = ph.pulseTeam==='blue'
+      ? [els.blueAtk[0], els.blueAtk[1], els.blueSup]
+      : [els.redInit[0], els.redInit[1]];
+    list.forEach(el=>{ el.classList.add('pulse'); setTimeout(()=>el.classList.remove('pulse'),1800); });
+  }
+
+  // Pass arrow
+  const passEl  = document.getElementById('passArrow');
+  const passEl2 = document.getElementById('passArrow2');
+  if(ph.showPass && ph.pass){
+    const f = ph.pass.from, t = ph.pass.to, v = ph.pass.via;
+    const d = v ? `M${f[0]},${f[1]} L${v[0]},${v[1]} L${t[0]},${t[1]}`
+                : `M${f[0]},${f[1]} L${t[0]},${t[1]}`;
+    if(ph.pass.color === 'red'){
+      passEl.setAttribute('d','');
+      passEl2.setAttribute('d', d);
+    } else {
+      passEl.setAttribute('d', d);
+      passEl2.setAttribute('d','');
+    }
+  } else {
+    passEl.setAttribute('d',''); passEl2.setAttribute('d','');
+  }
+  document.getElementById('svgPass').classList.toggle('show', !!ph.showPass);
+
+  // Transition arrows
+  const tIds = ['ta0','ta1','ta2','ta3'];
+  tIds.forEach(id=>document.getElementById(id).setAttribute('d',''));
+  if(ph.showTransition && ph.transArrows){
+    ph.transArrows.slice(0,4).forEach((a,i)=>{
+      const el = document.getElementById(tIds[i]);
+      el.setAttribute('d', `M${a.from[0]},${a.from[1]} L${a.to[0]},${a.to[1]}`);
+      el.setAttribute('stroke', a.color==='red' ? '#C61D23' : '#1a6eb5');
+      el.setAttribute('marker-end', a.color==='red' ? 'url(#mR)' : 'url(#mB)');
+    });
+  }
+  document.getElementById('svgTransition').classList.toggle('show', !!ph.showTransition);
+
+  document.getElementById('phaseLabel').textContent = ph.label;
+  document.getElementById('desc').textContent = ph.desc;
+
+  document.querySelectorAll('.step-dot').forEach((d,i)=>{
+    d.classList.toggle('active', i===idx);
+    d.classList.toggle('done',   i<idx);
+  });
+  document.getElementById('prevBtn').style.opacity = idx===0 ? '0.3':'1';
+  document.getElementById('nextBtn').style.opacity = idx===phases.length-1 ? '0.3':'1';
+}
+
+function changePhase(dir){
+  const next = Math.max(0, Math.min(phases.length-1, current+dir));
+  if(next!==current){ current=next; applyPhase(current); }
+  if(current===phases.length-1 && isAuto) stopAuto();
+}
+
+function toggleAuto(){
+  if(isAuto){ stopAuto(); return; }
+  isAuto=true;
+  document.getElementById('playBtn').textContent='⏸ Pause';
+  if(current===phases.length-1){ current=0; applyPhase(0); }
+  timer=setInterval(()=>{
+    if(current<phases.length-1){ current++; applyPhase(current); }
+    else stopAuto();
+  }, 2400);
+}
+
+function stopAuto(){
+  isAuto=false; clearInterval(timer);
+  document.getElementById('playBtn').textContent='▶ Auto';
+}
+
+phases.forEach(()=>{
+  const d=document.createElement('div');
+  d.className='step-dot';
+  document.getElementById('stepDots').appendChild(d);
+});
+
+createAll();
+applyPhase(0);
+</script>
+</body>
+</html>
